@@ -14,7 +14,7 @@ all: $(LIB_TARGET) $(TARGET)
 
 $(LIB_TARGET): $(LIB_SRCS)
 	@mkdir -p $(LIB_DIR)
-	$(CC) $(CFLAGS) -shared -fPIC -o $@ $^ -lwiringPi -lcrypt
+	$(CC) $(CFLAGS) -shared -fPIC -o $@ $^ -lwiringPi -lcrypt -Iinclude
 
 $(TARGET): $(TARGET_SRCS)
 	$(CC) -o $@ $^ -ldl -rdynamic -Iinclude
