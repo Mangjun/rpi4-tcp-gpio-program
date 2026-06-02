@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -Iinclude
 TARGET = client
 
-SRCS = src/main.c src/menu.c
+SRCS = src/main.c src/menu.c src/setup.c
 
 .PHONY: all clean
 

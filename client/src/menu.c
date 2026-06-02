@@ -1,3 +1,14 @@
+/*******************************************************************************
+ * File Name    : <menu.c>
+ * Description  : <리눅스 클라이언트 메뉴 인터페이스 및 서버 통신>
+ * Author       : <김명준>
+ * Date Created : <2026.06.02>
+ *
+ * History:
+ * - <2026.06.02> : 최초 작성 (<김명준>)
+ * - <2026.06.02> : 함수 주석 및 safe 함수로 변환 ex) scanf -> fgets, 대소문자 구분 X strcmp -> strcasecmp (<김명준>)
+ *******************************************************************************/
+
 #include "menu.h"
 
 #include <stdio.h>
@@ -6,32 +17,69 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
-#define MAX_BUF_SIZE 80
+#define MAX_BUF_SIZE 1024
 
-static void send_command(int sockfd, const char *target, const char *action) {
-    char buffer[128] = {0};
-    snprintf(buffer, sizeof(buffer), "/%s/%s", target, action);
+static const char* menu_name[] = { "LED", "BUZZER", "CDS", "SEGMENT", "EXIT" };
+
+/**
+ * @brief   TCP send 함수
+ * @details /target/action 형식으로 보내기로 했음 ex) /led/on
+ * @param   target  특정 하드웨어 (LED, 부저, 조도 센서, 7세그먼트)
+ * @param   action  수행할 명령 (ON, OFF 등)
+ */
+static void send_command(const int sockfd, const char *target, const char *action) {
+    char buf[MAX_BUF_SIZE] = {0};
+    snprintf(buf, MAX_BUF_SIZE, "/%s/%s", target, action);
     
-    if (send(sockfd, buffer, strlen(buffer), 0) == -1) {
+    if (send(sockfd, buf, strlen(buf), 0) == -1) {
         perror("send error");
     }
 }
 
+/**
+ * @brief   사용자 문자열 입력 받는 함수
+ * @param   msg 화면에 출력할 메시지
+ * @param   buf 입력받을 공간
+ */
 static inline void input_option(const char * const msg, char * const buf)
 {
     printf("%s", msg);
     memset(buf, 0, MAX_BUF_SIZE);
-    scanf("%s", buf);
+    fgets(buf, MAX_BUF_SIZE, stdin);
+
+    // MAX_BUF_SIZE보다 더 많이 입력했을 시
+    if (!strchr(buf, '\n')) {
+        while (getchar() != '\n'); // 버퍼 비우기
+    }
+    else {
+        buf[strcspn(buf, "\n")] = '\0'; // fgets는 \n까지 포함하므로 제거해줘야 함
+    }
+}
+
+/**
+ * @brief   사용자 숫자 입력 받는 함수
+ * @param   msg 화면에 출력할 메시지
+ */
+static inline int input_num(const char * const msg)
+{
+    char buf[33] = {0};
+    printf("%s", msg);
+    fgets(buf, sizeof(buf), stdin);
+
+    if (!strchr(buf, '\n')) {
+        while (getchar() != '\n'); 
+    }
+
+    return atoi(buf);
 }
 
 void print_menu(void)
 {
+    int i;
     printf("\n===============================\n");
-    printf("1. LED\n");
-    printf("2. BUZZER\n");
-    printf("3. CDS\n");
-    printf("4. SEGMENT\n");
-    printf("5. EXIT\n");
+    for (i = 0; i < 5; i++) {
+        printf("%d. %s\n", i + 1, menu_name[i]);
+    }
     printf("===============================\n");
     printf("Input > ");
 }
@@ -44,7 +92,7 @@ void led_menu(int sockfd)
         printf("Usage: [ON | OFF | BLINK | LOW | MID | HIGH | Q]\n");
         input_option("LED> ", buf);
 
-        if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
+        if (!strcasecmp(buf, "Q")) {
             break;
         }
 
@@ -60,7 +108,7 @@ void buzzer_menu(int sockfd)
         printf("Usage: [ON | OFF | Q]\n");
         input_option("BUZZER> ", buf);
 
-        if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
+        if (!strcasecmp(buf, "Q")) {
             break;
         }
 
@@ -76,23 +124,23 @@ void cds_menu(int sockfd)
         printf("Usage: [ON | OFF | Q]\n");
         input_option("CDS> ", buf);
 
-        if (strcmp(buf, "OFF") == 0 || strcmp(buf, "off") == 0) {
+        if (!strcasecmp(buf, "OFF")) {
             send_command(sockfd, "cds", "OFF");
         }
-        else if (strcmp(buf, "ON") == 0 || strcmp(buf, "on") == 0) {
+        else if (!strcasecmp(buf, "ON")) {
             int threshold;
-            printf("input threshold: ");
-            scanf("%d", &threshold);
+            char arg[33]; // int형 크기 (4 * 8 = 32bit + \0 1bit)
+
+            threshold = input_num("input threshold: ");
 
             if (threshold < 0) {
                 threshold = 0;
             }
             
-            char arg[32];
-            sprintf(arg, "%d", threshold);
+            snprintf(arg, sizeof(arg), "%d", threshold);
             send_command(sockfd, "cds", arg);
         }
-        else if (strcmp(buf, "Q") == 0 || strcmp(buf, "q") == 0) {
+        else if (!strcasecmp(buf, "Q")) {
             break;
         }
     }
@@ -102,8 +150,7 @@ void segment_menu(int sockfd)
 {
     int num;
 
-    printf("input Num: ");
-    scanf("%d", &num);
+    num = input_num("input Num: ");
 
     if (num < 0 || num > 9) {
         printf("Input 0 ~ 9\n");
@@ -111,14 +158,14 @@ void segment_menu(int sockfd)
     }
     else {
         char arg[16];
-        sprintf(arg, "%d", num);
+        snprintf(arg, sizeof(arg), "%d", num);
         send_command(sockfd, "segment", arg);
     }
 }
 
 void exit_menu(int sockfd)
 {
-    printf("Exit...\n");
+    printf("\nExit...\n");
     close(sockfd);
     exit(0);
 }
