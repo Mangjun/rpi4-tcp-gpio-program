@@ -1,16 +1,16 @@
 CC = aarch64-linux-gnu-gcc
-CFLAGS = -Wall -O2 -fPIC
+CFLAGS = -Wall -O2 -fPIC -I../server/include
 LDFLAGS = -lwiringPi -lcrypt
 
-LIB_DIR = ../server/lib
+BIN_DIR = ../bin
 LIB_NAME = librpi.so
-LIB_TARGET = $(LIB_DIR)/$(LIB_NAME)
+LIB_TARGET = $(BIN_DIR)/$(LIB_NAME)
 LIB_SRCS = buzzer.c cds.c led.c segment.c
 
 .PHONY: clean
 
 $(LIB_TARGET): $(LIB_SRCS)
-	@mkdir -p $(LIB_DIR)
+	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -shared -o $@ $^ $(LDFLAGS)
 
 clean:

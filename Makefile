@@ -1,5 +1,7 @@
 .PHONY: all clean client device server
 
+BIN_DIR = bin
+
 all: client device server
 
 client:
