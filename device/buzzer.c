@@ -6,11 +6,12 @@
  *
  * History:
  * - <2026.06.02> : 최초 작성 (<김명준>)
+ * - <2026.06.03> : 매개변수 device_state로 수정 (<김명준>)
  *******************************************************************************/
 
+#include "state.h"
+
 #include <stdio.h>
-#include <string.h>
-#include <strings.h>
 #include <wiringPi.h>
 #include <softTone.h>
 #include <syslog.h>
@@ -31,88 +32,44 @@ static const int notes[TOTAL] = {
 /**
  * @brief   음악 켜기
  */
-static void music_on();
+static void music_on(struct device_state * const arg);
 
 /**
  * @brief   음악 끄기
  */
-static void music_off();
+static void music_off(struct device_state * const arg);
 
-/**
- * @brief   명령어 테이블
- */
-struct command_map {
-	const char *command;    /**< 명령어 */
-	void (*action)(void);   /**< 수행할 함수 */
-};
-
-/**
- * @brief   명령어 바인딩
- */
-const static struct command_map cmd[] = {
-	{"ON", music_on},
-	{"OFF", music_off},
-};
-
-const static int cmd_size = sizeof(cmd) / sizeof(cmd[0]);
-
-static int is_initialized = 0; // 초기화 여부
-
-volatile int keep_playing = 0; // 음악 수행 여부
-
-void buzzer_function(char* arg) {
-    if (!is_initialized) {
-        if (wiringPiSetup() == -1) {
-            syslog(LOG_ERR, "BUZZER Module: wiringPiSetup() failed");
-            return;
-        }
-
-        if (softToneCreate(BUZZER) == -1) {
-            syslog(LOG_ERR, "BUZZER Module: softToneCreate() failed");
-            return;
-        }
-
-        syslog(LOG_INFO, "BUZZER Module: Initialized successfully");
-        is_initialized = 1;
-    }
-    
+void buzzer_function(struct device_state * const arg) {
     if (arg == NULL) {
         syslog(LOG_WARNING, "BUZZER Module: argument is NULL");
         return;
     }
 
-	for (int i = 0; i < cmd_size; i++) {
-		if (!strcasecmp(arg, cmd[i].command)) {
-            syslog(LOG_INFO, "BUZZER Module: executing command [%s]", arg);
-			cmd[i].action();
-			return;
-		}
-	}
-
-    syslog(LOG_WARNING, "BUZZER Module: unknown command [%s]", arg);
+	if (arg->buzzer_on == 1) {
+        syslog(LOG_INFO, "BUZZER Module: Music ON");
+        music_on(arg);
+    }
+    else {
+        syslog(LOG_INFO, "BUZZER Module: Music OFF");
+        music_off(arg);
+    }
 }
 
-static void music_on()
+static void music_on(struct device_state * const arg)
 {
     int i;
 
-    if (keep_playing == 1) {
-        return; 
-    }
-
-    keep_playing = 1;
     for (i = 0; i < TOTAL; i++) {
-        if (!keep_playing) break;
+        if (!arg->buzzer_on) break;
         softToneWrite(BUZZER, notes[i]);
         delay(280);
     }
 
     softToneWrite(BUZZER, 0);
-    keep_playing = 0;
+    arg->buzzer_on = 0;
 }
 
-static void music_off()
+static void music_off(struct device_state * const arg)
 {
-    keep_playing = 0;
     softToneWrite(BUZZER, 0); 
 }

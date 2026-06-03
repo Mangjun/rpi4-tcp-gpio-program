@@ -6,10 +6,12 @@
  *
  * History:
  * - <2026.06.02> : 최초 작성 (<김명준>)
+ * - <2026.06.03> : 매개변수 device_state로 수정 (<김명준>)
  *******************************************************************************/
 
+#include "state.h"
+
 #include <stdio.h>
-#include <string.h>
 #include <wiringPi.h>
 #include <softTone.h>
 #include <syslog.h>
@@ -43,46 +45,30 @@ static const int num_patterns[10][7] = {
     {0, 0, 0, 0, 1, 0, 0}  // 9
 };
 
-static int is_initialized = 0; // 초기화 여부
-
-void segment_function(int *arg) {
-    if (!is_initialized) {
-        if (wiringPiSetup() == -1) {
-            syslog(LOG_ERR, "SEGMENT Module: wiringPiSetup() failed");
-            return;
-        }
-
-        for (int i = 0; i < 7; i++) {
-            pinMode(segment_pins[i], OUTPUT);
-        }
-
-        if (softToneCreate(BUZZER) == -1) {
-            syslog(LOG_ERR, "SEGMENT Module: softToneCreate() failed");
-            return;
-        }
-
-        is_initialized = 1;
-        syslog(LOG_INFO, "SEGMENT Module: Initialized successfully");
-    }
-    
+void segment_function(struct device_state* const arg) {
     if (arg == NULL) {
         syslog(LOG_WARNING, "SEGMENT Module: argument is NULL");
         return;
     }
 
-    if (*arg < 0 || *arg > 9) {
-        syslog(LOG_WARNING, "SEGMENT Module: Invalid timer value [%d]", *arg);
+    volatile struct device_state* live_arg = (volatile struct device_state*)arg; // 캐싱 끄기
+
+    if (!live_arg->segment_on) {
+        return;
+    }
+
+    if (live_arg->segment < 0 || live_arg->segment > 9) {
+        syslog(LOG_WARNING, "SEGMENT Module: Invalid timer value [%d]", live_arg->segment);
         return;
     }
 
     clear_segment();
 
-    syslog(LOG_INFO, "SEGMENT Module: Timer value [%d]", *arg);
-    int i;
-    for (i = *arg; i >= 0; i--) {
-        display_number(i);
+    syslog(LOG_INFO, "SEGMENT Module: Timer value [%d]", live_arg->segment);
+    for (; live_arg->segment >= 0; live_arg->segment--) {
+        display_number(live_arg->segment);
 
-        if (i == 0) {
+        if (live_arg->segment == 0) {
             break;   
         }
 
@@ -91,10 +77,14 @@ void segment_function(int *arg) {
 
     syslog(LOG_INFO, "SEGMENT Module: Timer 0");
     softToneWrite(BUZZER, 1000);
+    arg->buzzer_on = 1;
     delay(1000);
     softToneWrite(BUZZER, 0);
+    arg->buzzer_on = 0;
     
     clear_segment();
+
+    live_arg->segment_on = 0;
 }
 
 static void display_number(const int num)

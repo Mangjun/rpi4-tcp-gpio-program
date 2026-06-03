@@ -6,7 +6,10 @@
  *
  * History:
  * - <2026.06.02> : 최초 작성 (<김명준>)
+ * - <2026.06.03> : 매개변수 device_state로 수정 (<김명준>)
  *******************************************************************************/
+
+#include "state.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -20,39 +23,39 @@
 /**
  * @brief   LED 켜기
  */
-static void led_on();
+static void led_on(struct device_state* const arg);
 
 /**
  * @brief   LED 끄기
  */
-static void led_off();
+static void led_off(struct device_state* const arg);
 
 /**
  * @brief   LED 점멸
  */
-static void led_blink();
+static void led_blink(struct device_state* const arg);
 
 /**
  * @brief   LED 밝기 최소(20%)
  */
-static void led_low();
+static void led_low(struct device_state* const arg);
 
 /**
  * @brief   LED 밝기 중간(60%)
  */
-static void led_mid();
+static void led_mid(struct device_state* const arg);
 
 /**
  * @brief   LED 밝기 최대(100%)
  */
-static void led_high();
+static void led_high(struct device_state* const arg);
 
 /**
  * @brief   명령어 테이블
  */
 struct command_map {
-	const char *command;    /**< 명령어 */
-	void (*action)(void);   /**< 수행할 함수 */
+	const char *command;                          /**< 명령어 */
+	void (*action)(struct device_state* const);   /**< 수행할 함수 */
 };
 
 /**
@@ -69,72 +72,58 @@ const static struct command_map cmd[] = {
 
 const static int cmd_size = sizeof(cmd) / sizeof(cmd[0]);
 
-static int is_initialized = 0; // 초기화 여부
-
-void led_function(char* arg)
+void led_function(struct device_state* const arg)
 {
-    if (!is_initialized) {
-        if (wiringPiSetup() == -1) {
-            syslog(LOG_ERR, "LED Module: wiringPiSetup() failed");
-            return;
-        }
-
-        pinMode(LED, OUTPUT);
-
-        if (softPwmCreate(LED, 0, 100) != 0) {
-            syslog(LOG_ERR, "LED Module: softPwmCreate() failed");
-            return;
-        }
-
-        syslog(LOG_INFO, "LED Module: Initialized successfully");
-        is_initialized = 1;
-    }
-	
     if (arg == NULL) {
         syslog(LOG_WARNING, "LED Module: argument is NULL");
         return;
     }
 
 	for (int i = 0; i < cmd_size; i++) {
-		if (!strcasecmp(arg, cmd[i].command)) {
-            syslog(LOG_INFO, "LED Module: executing command [%s]", arg);
-			cmd[i].action();
+		if (!strcasecmp(arg->led, cmd[i].command)) {
+            syslog(LOG_INFO, "LED Module: executing command [%s]", arg->led);
+			cmd[i].action(arg);
 			return;
 		}
 	}
 
-    syslog(LOG_WARNING, "LED Module: unknown command [%s]", arg);
+    syslog(LOG_WARNING, "LED Module: unknown command [%s]", arg->led);
 }
 
-static void led_on()
+static void led_on(struct device_state* const arg)
 {
     softPwmWrite(LED, 100);
 }
 
-static void led_off()
+static void led_off(struct device_state* const arg)
 {
     softPwmWrite(LED, 0);
 }
 
-static void led_blink()
+static void led_blink(struct device_state* const arg)
 {
-	softPwmWrite(LED, 100);
-	delay(500);
-	softPwmWrite(LED, 0);
-	delay(500);
+    while (!strcasecmp(arg->led, "BLINK")) {
+        softPwmWrite(LED, 100);
+        delay(500);
+
+        if (strcasecmp(arg->led, "BLINK")) break; // 중간에 값 바뀔 시 대비
+
+        softPwmWrite(LED, 0);
+        delay(500);
+    }
 }
 
-static void led_low()
+static void led_low(struct device_state* const arg)
 {
     softPwmWrite(LED, 20);
 }
 
-static void led_mid()
+static void led_mid(struct device_state* const arg)
 {
     softPwmWrite(LED, 60);
 }
 
-static void led_high()
+static void led_high(struct device_state* const arg)
 {
     softPwmWrite(LED, 100);
 }

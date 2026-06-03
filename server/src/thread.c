@@ -1,3 +1,14 @@
+/*******************************************************************************
+ * File Name    : <thread.c>
+ * Description  : <비동기 하드웨어 제어를 위한 워커 스레드 구현부>
+ * Author       : <김명준>
+ * Date Created : <2026.06.02>
+ *
+ * History:
+ * - <2026.06.02> : 최초 작성 (<김명준>)
+ *******************************************************************************/
+
+#include "state.h"
 #include "thread.h"
 
 #include <stdio.h>
@@ -6,144 +17,50 @@
 
 #define LIB "./librpi.so"
 
-void* led_thread(void* arg)
+static void* execute_device_function(const char* func_name, void * const arg)
 {
 	void *handle = NULL;
-	void (*led_func)(char *);
+	void (*device_func)(struct device_state* const);
 	char* err_msg;
 
 	handle = dlopen(LIB, RTLD_LAZY | RTLD_NODELETE);
 	if (handle == NULL) {
-		goto err;
+		return NULL;
 	}
 
 	dlerror();
 
-	led_func = (void (*)(char *))dlsym(handle, "led_function");
+	device_func = (void (*)(struct device_state* const))dlsym(handle, func_name);
 
 	err_msg = dlerror();
 
 	if (err_msg != NULL) {
-		goto err;
+		dlclose(handle);
+		return NULL;
 	}
 
-	led_func((char *)arg);
+	device_func((struct device_state* const)arg);
 
 	dlclose(handle);
-
-	free(arg);
 	return NULL;
-err:
-	if (handle) {
-		dlclose(handle);
-	}
+}
 
-	free(arg);
-	return NULL;
+void* led_thread(void* arg)
+{
+	return execute_device_function("led_function", arg);
 }
 
 void* buzzer_thread(void* arg)
 {
-	void *handle = NULL;
-	void (*buzzer_func)(char *);
-	char* err_msg;
-
-	handle = dlopen(LIB, RTLD_LAZY | RTLD_NODELETE);
-	if (handle == NULL) {
-		goto err;
-	}
-
-	dlerror();
-
-	buzzer_func = (void (*)(char *))dlsym(handle, "buzzer_function");
-
-	err_msg = dlerror();
-
-	if (err_msg != NULL) {
-		goto err;
-	}
-
-	buzzer_func((char *)arg);
-
-	dlclose(handle);
-
-	free(arg);
-	return NULL;
-err:
-	if (handle) {
-		dlclose(handle);
-	}
-
-	free(arg);
-	return NULL;
+	return execute_device_function("buzzer_function", arg);
 }
 
 void* cds_thread(void* arg)
 {
-	void *handle = NULL;
-	void (*cds_func)(int *);
-	char* err_msg;
-
-	handle = dlopen(LIB, RTLD_LAZY | RTLD_NODELETE);
-	if (!handle) {
-		goto err;
-	}
-
-	dlerror();
-
-	cds_func = (void (*)(int *))dlsym(handle, "cds_function");
-
-	err_msg = dlerror();
-
-	if (err_msg != NULL) {
-		goto err;
-	}
-
-	cds_func((int *)arg);
-
-	dlclose(handle);
-
-	return NULL;
-err:
-	if (handle) {
-		dlclose(handle);
-	}
-
-	return NULL;
+	return execute_device_function("cds_function", arg);
 }
 
 void* segment_thread(void* arg)
 {
-	void *handle = NULL;
-	void (*segment_func)(int *);
-	char* err_msg;
-
-	handle = dlopen(LIB, RTLD_LAZY | RTLD_NODELETE);
-	if (!handle) {
-		goto err;
-	}
-
-	dlerror();
-
-	segment_func = (void (*)(int *))dlsym(handle, "segment_function");
-
-	err_msg = dlerror();
-
-	if (err_msg != NULL) {
-		goto err;
-	}
-
-	segment_func((int *)arg);
-
-	dlclose(handle);
-
-	free(arg);
-	return NULL;
-err:
-	if (handle) {
-		dlclose(handle);
-	}
-
-	free(arg);
-	return NULL;
+	return execute_device_function("segment_function", arg);
 }
