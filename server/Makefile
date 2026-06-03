@@ -4,7 +4,7 @@ LDFLAGS = -rdynamic -pthread -ldl -lwiringPi -lcrypt
 
 BIN_DIR = ../bin
 TARGET = $(BIN_DIR)/server
-TARGET_SRCS = src/server.c src/thread.c src/handler.c src/list.c
+TARGET_SRCS = src/server.c src/thread.c src/handler.c src/list.c src/core.c src/state.c
 
 .PHONY: clean
 

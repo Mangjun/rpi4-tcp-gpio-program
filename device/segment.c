@@ -64,7 +64,6 @@ void segment_function(struct device_state* const arg) {
 
     clear_segment();
 
-    syslog(LOG_INFO, "SEGMENT Module: Timer value [%d]", live_arg->segment);
     for (; live_arg->segment >= 0; live_arg->segment--) {
         display_number(live_arg->segment);
 
@@ -75,7 +74,6 @@ void segment_function(struct device_state* const arg) {
         delay(1000);
     }
 
-    syslog(LOG_INFO, "SEGMENT Module: Timer 0");
     softToneWrite(BUZZER, 1000);
     arg->buzzer_on = 1;
     delay(1000);

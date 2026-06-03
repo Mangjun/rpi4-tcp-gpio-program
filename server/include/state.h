@@ -22,3 +22,5 @@ struct device_state {
     int segment_on;     /**< 7 세그먼트 상태 */
     int segment;        /**< 7 세그먼트 현재 값 */
 };
+
+extern struct device_state g_state;
