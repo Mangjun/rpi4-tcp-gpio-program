@@ -8,6 +8,7 @@
  * - <2026.06.02> : 최초 작성 (<김명준>)
  * - <2026.06.03> : inet_addr -> inet_pton으로 수정 (Deprecated) (<김명준>)
  *******************************************************************************/
+
 #include "setup.h"
 
 #include <stdio.h>
@@ -39,7 +40,13 @@ int setup_server_socket(int* const sockfd, const char* ip, const char* port)
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(port)); // 문자열이므로 숫자로 변환해줘야 함
-    server_addr.sin_addr.s_addr = inet_pton(ip);
+
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
+        perror("inet_pton");
+        close(*sockfd);
+        return 1;
+    }
+    
     memset(&(server_addr.sin_zero), '\0', 8);
 
     if (connect(*sockfd, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
