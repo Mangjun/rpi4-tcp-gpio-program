@@ -7,9 +7,25 @@
  * History:
  * - <2026.06.02> : 최초 작성 (<김명준>)
  * - <2026.06.02> : 함수 주석 (<김명준>)
+ * - <2026.06.03> : main.c에서 input_num 사용하도록 수정 (<김명준>)
  *******************************************************************************/
 
 #pragma once
+
+/**
+ * @brief   사용자 문자열 입력 받는 함수
+ * @param   sockfd 서버 소켓
+ * @param   msg 화면에 출력할 메시지
+ * @param   buf 입력받을 공간
+ */
+void input_option(const int sockfd, const char * const msg, char * const buf);
+
+/**
+ * @brief   사용자 숫자 입력 받는 함수
+ * @param   sockfd 서버 소켓
+ * @param   msg 화면에 출력할 메시지
+ */
+int input_num(const int sockfd, const char * const msg);
 
 /**
  * @brief   화면에 메뉴(이벤트) 출력
@@ -28,7 +44,7 @@ void print_menu(void);
  *          Q: 나가기
  * @param   sockfd  서버 소켓 디스크립터
  */
-void led_menu(int);
+void led_menu(const int);
 
 /**
  * @brief   부저 메뉴
@@ -38,7 +54,7 @@ void led_menu(int);
  *          Q: 나가기
  * @param   sockfd  서버 소켓 디스크립터
  */
-void buzzer_menu(int);
+void buzzer_menu(const int);
 
 /**
  * @brief   조도 센서 메뉴
@@ -48,17 +64,17 @@ void buzzer_menu(int);
  *          Q: 나가기
  * @param   sockfd  서버 소켓 디스크립터
  */
-void cds_menu(int);
+void cds_menu(const int);
 
 /**
  * @brief   7 세그먼트 메뉴
  * @details 0 ~ 9 사이의 숫자 입력
  * @param   sockfd  서버 소켓 디스크립터
  */
-void segment_menu(int);
+void segment_menu(const int);
 
 /**
  * @brief   클라이언트 종료
  * @param   sockfd  서버 소켓 디스크립터
  */
-void exit_menu(int);
+void exit_menu(const int);

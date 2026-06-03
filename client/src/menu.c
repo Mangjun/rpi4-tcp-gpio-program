@@ -7,6 +7,7 @@
  * History:
  * - <2026.06.02> : 최초 작성 (<김명준>)
  * - <2026.06.02> : 함수 주석 및 safe 함수로 변환 ex) scanf -> fgets, 대소문자 구분 X strcmp -> strcasecmp (<김명준>)
+ * - <2026.06.03> : EOF 입력 시 예외 처리 및 select 추가 (사용자 입력, 서버 소켓) (<김명준>)
  *******************************************************************************/
 
 #include "menu.h"
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 #define MAX_BUF_SIZE 1024
 
@@ -31,44 +33,73 @@ static void send_command(const int sockfd, const char *target, const char *actio
     char buf[MAX_BUF_SIZE] = {0};
     snprintf(buf, MAX_BUF_SIZE, "/%s/%s", target, action);
     
-    if (send(sockfd, buf, strlen(buf), 0) == -1) {
+    if (send(sockfd, buf, strlen(buf), 0) <= 0) {
         perror("send error");
+        close(sockfd);
+        exit(1);
     }
 }
 
-/**
- * @brief   사용자 문자열 입력 받는 함수
- * @param   msg 화면에 출력할 메시지
- * @param   buf 입력받을 공간
- */
-static inline void input_option(const char * const msg, char * const buf)
+void input_option(const int sockfd, const char * const msg, char * const buf)
 {
     printf("%s", msg);
-    memset(buf, 0, MAX_BUF_SIZE);
-    fgets(buf, MAX_BUF_SIZE, stdin);
+    fflush(stdout); // 혹시 몰라서 버퍼 비우기
 
-    // MAX_BUF_SIZE보다 더 많이 입력했을 시
-    if (!strchr(buf, '\n')) {
-        while (getchar() != '\n'); // 버퍼 비우기
-    }
-    else {
-        buf[strcspn(buf, "\n")] = '\0'; // fgets는 \n까지 포함하므로 제거해줘야 함
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    FD_SET(sockfd, &fds);
+    fd_set bak_fds = fds;
+    
+    while (1) {
+        fds = bak_fds;
+
+        if (select(sockfd + 1, &fds, NULL, NULL, NULL) < 0) {
+            perror("select");
+            return;
+        }
+
+        // 서버 수신
+        if (FD_ISSET(sockfd, &fds)) {
+            char recv_buf[MAX_BUF_SIZE] = {0};
+            int n = recv(sockfd, recv_buf, sizeof(recv_buf) - 1, 0);
+            if (n > 0) {
+                recv_buf[n] = '\0';
+                printf("\n[Server]: %s\n", recv_buf);
+                printf("%s", msg);
+                fflush(stdout);
+            } else if (n == 0) {
+                printf("\nServer disconnected...\n");
+                exit(1);
+            }
+        }
+        // 사용자 입력
+        else if (FD_ISSET(STDIN_FILENO, &fds)) {
+            memset(buf, 0, MAX_BUF_SIZE);
+            if (fgets(buf, MAX_BUF_SIZE, stdin) == NULL) {
+                printf("\n EOF Exit...\n");
+                close(sockfd);
+                exit(0);
+            }
+
+            // MAX_BUF_SIZE보다 더 많이 입력했을 시
+            if (!strchr(buf, '\n')) {
+                int c;
+
+                while ((c = getchar()) != '\n' && c != EOF); // 버퍼 비우기
+            }
+            else {
+                buf[strcspn(buf, "\n")] = '\0'; // fgets는 \n까지 포함하므로 제거해줘야 함
+            }
+            return;
+        }
     }
 }
 
-/**
- * @brief   사용자 숫자 입력 받는 함수
- * @param   msg 화면에 출력할 메시지
- */
-static inline int input_num(const char * const msg)
+int input_num(const int sockfd, const char * const msg)
 {
-    char buf[33] = {0};
-    printf("%s", msg);
-    fgets(buf, sizeof(buf), stdin);
-
-    if (!strchr(buf, '\n')) {
-        while (getchar() != '\n'); 
-    }
+    char buf[MAX_BUF_SIZE] = {0};
+    input_option(sockfd, msg, buf);
 
     return atoi(buf);
 }
@@ -81,16 +112,15 @@ void print_menu(void)
         printf("%d. %s\n", i + 1, menu_name[i]);
     }
     printf("===============================\n");
-    printf("Input > ");
 }
 
-void led_menu(int sockfd)
+void led_menu(const int sockfd)
 {
     char buf[MAX_BUF_SIZE];
 
     while (1) {
         printf("Usage: [ON | OFF | BLINK | LOW | MID | HIGH | Q]\n");
-        input_option("LED> ", buf);
+        input_option(sockfd, "LED> ", buf);
 
         if (!strcasecmp(buf, "Q")) {
             break;
@@ -100,13 +130,13 @@ void led_menu(int sockfd)
     }
 }
 
-void buzzer_menu(int sockfd)
+void buzzer_menu(const int sockfd)
 {
     char buf[MAX_BUF_SIZE];
 
     while (1) {
         printf("Usage: [ON | OFF | Q]\n");
-        input_option("BUZZER> ", buf);
+        input_option(sockfd, "BUZZER> ", buf);
 
         if (!strcasecmp(buf, "Q")) {
             break;
@@ -116,13 +146,13 @@ void buzzer_menu(int sockfd)
     }
 }
 
-void cds_menu(int sockfd)
+void cds_menu(const int sockfd)
 {
     char buf[MAX_BUF_SIZE];
 
     while (1) {
         printf("Usage: [ON | OFF | Q]\n");
-        input_option("CDS> ", buf);
+        input_option(sockfd, "CDS> ", buf);
 
         if (!strcasecmp(buf, "OFF")) {
             send_command(sockfd, "cds", "OFF");
@@ -131,7 +161,7 @@ void cds_menu(int sockfd)
             int threshold;
             char arg[33]; // int형 크기 (4 * 8 = 32bit + \0 1bit)
 
-            threshold = input_num("input threshold: ");
+            threshold = input_num(sockfd, "input threshold: ");
 
             if (threshold < 0) {
                 threshold = 0;
@@ -146,11 +176,11 @@ void cds_menu(int sockfd)
     }
 }
 
-void segment_menu(int sockfd)
+void segment_menu(const int sockfd)
 {
     int num;
 
-    num = input_num("input Num: ");
+    num = input_num(sockfd, "input Num: ");
 
     if (num < 0 || num > 9) {
         printf("Input 0 ~ 9\n");
@@ -163,7 +193,7 @@ void segment_menu(int sockfd)
     }
 }
 
-void exit_menu(int sockfd)
+void exit_menu(const int sockfd)
 {
     printf("\nExit...\n");
     close(sockfd);
