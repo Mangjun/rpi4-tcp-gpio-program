@@ -33,9 +33,6 @@ extern struct device_state g_state;
 static const char * led_status[] = { "ON", "OFF", "BLINK", "LOW", "MID", "HIGH" };
 static const int led_status_count = sizeof(led_status) / sizeof(led_status[0]);
 
-pthread_mutex_t cds_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t segment_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 int handler_init(void)
 {
     if (wiringPiSetup() == -1) {
@@ -68,13 +65,19 @@ void handle_led(const char *action)
     int i;
     for (i = 0; i < led_status_count; i++) {
         if (!strcasecmp(action, led_status[i])) {
-            snprintf(g_state.led, sizeof(g_state.led), "%s", action);
             break;
         }
     }
 
+    if (i == led_status_count) {
+        return;
+    }
+
+    update_led_state(action);
+
     if (pthread_create(&tid, NULL, led_thread, (void *)&g_state)) {
         syslog(LOG_ERR, "LED pthread_create");
+        update_led_state("OFF");
         return;
     }
     
@@ -86,18 +89,23 @@ void handle_buzzer(const char *action)
     pthread_t tid;
 
     if (!strcasecmp(action, "ON")) {
-        g_state.buzzer_on = 1;
+        int was_off = (g_state.buzzer_on == 0);
+
+        update_buzzer_state(1);
+
+        if (was_off) {
+            if (pthread_create(&tid, NULL, buzzer_thread, (void *)&g_state)) {
+                syslog(LOG_ERR, "BUZZER pthread_create");
+                update_buzzer_state(0);
+                return;
+            }
+            
+            pthread_detach(tid);
+        }
     }
     else if (!strcasecmp(action, "OFF")) {
-        g_state.buzzer_on = 0;
-    }
-
-    if (pthread_create(&tid, NULL, buzzer_thread, (void *)&g_state)) {
-        syslog(LOG_ERR, "BUZZER pthread_create");
-        return;
-    }
-
-    pthread_detach(tid);
+        update_buzzer_state(0);
+    }    
 }
 
 void handle_cds(const char *action)
@@ -105,8 +113,7 @@ void handle_cds(const char *action)
     pthread_t tid;
 
     if (!strcasecmp(action, "OFF")) {
-        g_state.cds_threshold = -1;
-        g_state.cds_on = 0;
+        update_cds_state(0, -1, -1);
     }
     else {
         int val = atoi(action);
@@ -114,14 +121,13 @@ void handle_cds(const char *action)
             val = 0;
         }
 
-        pthread_mutex_lock(&cds_mutex);
-        g_state.cds_threshold = val;
-        pthread_mutex_unlock(&cds_mutex);
+        int was_off = (g_state.cds_on == 0);
+        update_cds_state(1, val, g_state.cds_current);
 
-        if (!g_state.cds_on) {
-            g_state.cds_on = 1;
+        if (was_off) {
             if (pthread_create(&tid, NULL, cds_thread, (void *)&g_state)) {
                 syslog(LOG_ERR, "CDS pthread_create");
+                update_cds_state(0, -1, -1);
                 return;
             }
 
@@ -139,21 +145,15 @@ void handle_segment(const char *action)
         return;
     }
 
-    pthread_mutex_lock(&segment_mutex);
     if (g_state.segment_on) {
-        pthread_mutex_unlock(&segment_mutex);
         return;
     }
 
-    g_state.segment = num;
-    g_state.segment_on = 1;
-    pthread_mutex_unlock(&segment_mutex);
+    update_segment_state(1, num);
 
     if (pthread_create(&tid, NULL, segment_thread, (void *)&g_state)) {
         syslog(LOG_ERR, "SEGMENT pthread_create");
-        pthread_mutex_lock(&segment_mutex);
-        g_state.segment_on = 0;
-        pthread_mutex_unlock(&segment_mutex);
+        update_segment_state(0, 0);
         return;
     }
 

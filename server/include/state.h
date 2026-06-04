@@ -24,3 +24,8 @@ struct device_state {
 };
 
 extern struct device_state g_state;
+
+void update_led_state(const char *new_state);
+void update_buzzer_state(const int new_state);
+void update_cds_state(const int cds_on_state, const int cds_threshold, const int cds_current);
+void update_segment_state(const int segment_on, const int segment);

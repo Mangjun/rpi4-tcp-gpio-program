@@ -10,6 +10,13 @@
 
 #include "state.h"
 
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <pthread.h>
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 struct device_state g_state = {
     .led            = "OFF",
     .buzzer_on      = 0,
@@ -19,3 +26,71 @@ struct device_state g_state = {
     .segment_on     = 0,
     .segment        = 0,
 };
+
+void update_led_state(const char *new_state)
+{
+    int changed = 0;
+
+    pthread_mutex_lock(&mutex);
+    if (strcasecmp(g_state.led, new_state)) {
+        snprintf(g_state.led, sizeof(g_state.led), "%s", new_state);
+        changed = 1;
+    }
+    pthread_mutex_unlock(&mutex);
+
+    if (changed) {
+        // 브로드 캐스트
+    }
+}
+
+void update_buzzer_state(const int new_state)
+{
+    int changed = 0;
+
+    pthread_mutex_lock(&mutex);
+    if (g_state.buzzer_on != new_state) {
+        g_state.buzzer_on = new_state;
+        changed = 1;
+    }
+    pthread_mutex_unlock(&mutex);
+
+
+    if (changed) {
+        // 브로드 캐스트
+    }
+}
+
+void update_cds_state(const int cds_on_state, const int cds_threshold, const int cds_current)
+{
+    int changed = 0;
+
+    pthread_mutex_lock(&mutex);
+    if (g_state.cds_on != cds_on_state || g_state.cds_threshold != cds_threshold || g_state.cds_current != cds_current) {
+        g_state.cds_on = cds_on_state;
+        g_state.cds_threshold = cds_threshold;
+        g_state.cds_current = cds_current;
+        changed = 1;
+    }
+    pthread_mutex_unlock(&mutex);
+
+    if (changed) {
+        // 브로드 캐스트
+    }
+}
+
+void update_segment_state(const int segment_on, const int segment)
+{
+    int changed = 0;
+
+    pthread_mutex_lock(&mutex);
+    if (g_state.segment_on != segment_on || g_state.segment != segment) {
+        g_state.segment_on = segment_on;
+        g_state.segment = segment;
+        changed = 1;
+    }
+    pthread_mutex_unlock(&mutex);
+
+    if (changed) {
+        // 브로드 캐스트
+    }
+}
