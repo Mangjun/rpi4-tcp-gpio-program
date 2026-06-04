@@ -29,14 +29,12 @@
 
         .dashboard {
             display: grid;
-            /* 👇 이 부분을 repeat(2, 1fr)로 변경하여 무조건 2열로 고정했습니다 */
             grid-template-columns: repeat(2, 1fr); 
             gap: 20px;
             width: 100%;
             max-width: 900px;
         }
 
-        /* 👇 모바일 기기처럼 화면이 좁아질 경우 자동으로 1열로 변경되도록 추가 */
         @media (max-width: 650px) {
             .dashboard {
                 grid-template-columns: 1fr;
@@ -97,12 +95,12 @@
         .seg-f { top: 10px; left: 0; width: 10px; height: 35px; }
         .seg-g { top: 45px; left: 10px; width: 40px; height: 10px; }
 
-        /* --- 정보 텍스트 및 버튼 --- */
+        /* --- 정보 텍스트 및 컨트롤 --- */
         .status-text { font-size: 1.5rem; font-weight: bold; margin-bottom: 15px; }
         .info-row { display: flex; justify-content: space-between; width: 100%; margin: 5px 0; font-size: 0.9rem;}
         .val { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
 
-        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;}
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;}
         button {
             background-color: #333; color: white; border: none;
             padding: 8px 15px; border-radius: 5px; cursor: pointer;
@@ -111,6 +109,23 @@
         }
         button:hover { background-color: var(--accent); color: black; }
         button:active { transform: scale(0.95); }
+
+        /* 👇 입력창(Input) 스타일 추가 */
+        input[type="number"] {
+            background-color: #2a2a35;
+            color: var(--text-main);
+            border: 1px solid var(--text-sub);
+            padding: 8px;
+            border-radius: 5px;
+            font-weight: bold;
+            width: 60px;
+            text-align: center;
+            outline: none;
+        }
+        input[type="number"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 5px var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -158,7 +173,8 @@
                 <span id="seg-status" class="val">OFF</span>
             </div>
             <div class="btn-group" style="margin-top: 15px;">
-                <button onclick="sendCommand('segment', '9')">Start (9s)</button>
+                <input type="number" id="seg-input" min="0" max="9" value="9" title="0~9 사이의 초(s) 입력">
+                <button onclick="sendSegmentCommand()">Start Timer</button>
                 <button onclick="sendCommand('segment', 'OFF')">Stop</button>
             </div>
         </div>
@@ -179,7 +195,8 @@
                 <span id="cds-threshold" class="val">-1</span>
             </div>
             <div class="btn-group" style="margin-top: 15px;">
-                <button onclick="sendCommand('cds', '100')">Set Thresh: 100</button>
+                <input type="number" id="cds-input" min="0" value="100" title="조도 임계치 입력">
+                <button onclick="sendCdsCommand()">Set Threshold</button>
                 <button onclick="sendCommand('cds', 'OFF')">Turn OFF Auto</button>
             </div>
         </div>
@@ -192,7 +209,6 @@
         function sendCommand(target, action) {
             console.log(`Sending Command -> Target: ${target}, Action: ${action}`);
             
-            // 서버의 /cmd 경로로 POST 요청 전송
             fetch(`/cmd?target=${target}&action=${action}`, {
                 method: 'POST'
             })
@@ -204,6 +220,25 @@
             .catch(err => console.error("Network Error:", err));
         }
 
+        // 👇 입력창 값을 읽어와서 서버로 전송하는 함수 추가
+        function sendSegmentCommand() {
+            const val = document.getElementById('seg-input').value;
+            if (val >= 0 && val <= 9) {
+                sendCommand('segment', val);
+            } else {
+                alert("타이머는 0에서 9 사이의 값만 입력 가능합니다.");
+            }
+        }
+
+        function sendCdsCommand() {
+            const val = document.getElementById('cds-input').value;
+            if (val >= 0) {
+                sendCommand('cds', val);
+            } else {
+                alert("임계치는 0 이상의 유효한 값을 입력해주세요.");
+            }
+        }
+
         // =========================================================
         // 2. 서버로부터 브로드캐스트 수신 (SSE - Server-Sent Events)
         // =========================================================
@@ -212,7 +247,6 @@
         evtSource.onopen = () => console.log('SSE Stream Connected!');
         evtSource.onerror = (err) => console.error('SSE Stream Error or Disconnected. Reconnecting...', err);
 
-        // 서버에서 data: { ... }\n\n 형태로 보낼 때마다 트리거됨
         evtSource.onmessage = (event) => {
             try {
                 const state = JSON.parse(event.data);
@@ -231,7 +265,6 @@
             if (state.led) {
                 const ledVisual = document.getElementById('led-visual');
                 document.getElementById('led-status').innerText = state.led.toUpperCase();
-                // 클래스 덮어씌우기 (off, on, low, mid, high, blink)
                 ledVisual.className = 'led-bulb ' + state.led.toLowerCase();
             }
 
@@ -247,7 +280,6 @@
                 document.getElementById('cds-status').innerText = state.cds_on ? "ON" : "OFF";
                 document.getElementById('cds-current').innerText = state.cds_current;
                 document.getElementById('cds-threshold').innerText = state.cds_threshold;
-                // 조도 값이 임계치보다 높고, 센서가 켜져있으면 해(☀️), 아니면 달(🌙)
                 document.getElementById('cds-icon').innerText = (state.cds_current > state.cds_threshold && state.cds_on) ? "☀️" : "🌙";
             }
 
@@ -257,13 +289,13 @@
                 if (state.segment_on) {
                     drawSegment(state.segment);
                 } else {
-                    drawSegment(-1); // 불 다 끄기
+                    drawSegment(-1);
                 }
             }
         }
 
         // =========================================================
-        // 4. 7-Segment 숫자 그리기 로직 (C언어 패턴 배열과 동일)
+        // 4. 7-Segment 숫자 그리기 로직
         // =========================================================
         const numPatterns = [
             [1, 1, 1, 1, 1, 1, 0], // 0
@@ -282,9 +314,9 @@
             for (let i = 0; i < 7; i++) {
                 const segEl = document.getElementById(`seg-${i}`);
                 if (num >= 0 && num <= 9 && numPatterns[num][i] === 1) {
-                    segEl.classList.add('active'); // 불 켜기
+                    segEl.classList.add('active'); 
                 } else {
-                    segEl.classList.remove('active'); // 불 끄기
+                    segEl.classList.remove('active'); 
                 }
             }
         }
