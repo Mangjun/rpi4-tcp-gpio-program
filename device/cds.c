@@ -41,26 +41,25 @@ void cds_function(struct device_state* const arg)
         return;
     }
 
-	volatile struct device_state* live_arg = (volatile struct device_state*)arg; // 캐싱 끄기
-	
-	while (live_arg->cds_on) {
+	while (arg->cds_on) {
 		wiringPiI2CWrite(fd, 0x00);
 
 		int val = wiringPiI2CRead(fd);
-		live_arg->cds_current = val;
+		
+		update_cds_state(1, arg->cds_threshold, val);
 
-		if (val < live_arg->cds_threshold) {
+		if (val < arg->cds_threshold) {
 			softPwmWrite(LED, 0);
-			snprintf((char *)arg->led, sizeof(arg->led), "%s", "OFF");
+			update_led_state("OFF");
 		}
 		else {
 			softPwmWrite(LED, 100);
-			snprintf((char *)arg->led, sizeof(arg->led), "%s", "ON");
+			update_led_state("ON");
 		}
 
 		delay(500);
 	}
 
 	softPwmWrite(LED, 0);
-	snprintf(arg->led, sizeof(arg->led), "%s", "OFF");
+	update_led_state("OFF");
 }

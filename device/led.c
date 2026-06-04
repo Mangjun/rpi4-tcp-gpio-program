@@ -81,13 +81,10 @@ void led_function(struct device_state* const arg)
 
 	for (int i = 0; i < cmd_size; i++) {
 		if (!strcasecmp(arg->led, cmd[i].command)) {
-            syslog(LOG_INFO, "LED Module: executing command [%s]", arg->led);
 			cmd[i].action(arg);
 			return;
 		}
 	}
-
-    syslog(LOG_WARNING, "LED Module: unknown command [%s]", arg->led);
 }
 
 static void led_on(struct device_state* const arg)

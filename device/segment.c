@@ -51,38 +51,45 @@ void segment_function(struct device_state* const arg) {
         return;
     }
 
-    volatile struct device_state* live_arg = (volatile struct device_state*)arg; // 캐싱 끄기
-
-    if (!live_arg->segment_on) {
+    if (!arg->segment_on) {
         return;
     }
 
-    if (live_arg->segment < 0 || live_arg->segment > 9) {
-        syslog(LOG_WARNING, "SEGMENT Module: Invalid timer value [%d]", live_arg->segment);
+    if (arg->segment < 0 || arg->segment > 9) {
+        syslog(LOG_WARNING, "SEGMENT Module: Invalid timer value [%d]", arg->segment);
         return;
     }
+
+    int current_count = arg->segment;
 
     clear_segment();
 
-    for (; live_arg->segment >= 0; live_arg->segment--) {
-        display_number(live_arg->segment);
+    for (; current_count >= 0; current_count--) {
+        if (!arg->segment_on) {
+            break;
+        }
 
-        if (live_arg->segment == 0) {
-            break;   
+        update_segment_state(1, current_count);
+        display_number(current_count);
+
+        if (current_count == 0) {
+            break;
         }
 
         delay(1000);
     }
 
-    softToneWrite(BUZZER, 1000);
-    arg->buzzer_on = 1;
-    delay(1000);
-    softToneWrite(BUZZER, 0);
-    arg->buzzer_on = 0;
-    
+    if (current_count == 0 && arg->segment_on) {
+        softToneWrite(BUZZER, 1000);
+        update_buzzer_state(1);
+        delay(1000);
+        softToneWrite(BUZZER, 0);
+        update_buzzer_state(0);
+    }
+
     clear_segment();
 
-    live_arg->segment_on = 0;
+    update_segment_state(0, 0);
 }
 
 static void display_number(const int num)

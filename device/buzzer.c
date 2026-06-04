@@ -46,11 +46,9 @@ void buzzer_function(struct device_state * const arg) {
     }
 
 	if (arg->buzzer_on == 1) {
-        syslog(LOG_INFO, "BUZZER Module: Music ON");
         music_on(arg);
     }
     else {
-        syslog(LOG_INFO, "BUZZER Module: Music OFF");
         music_off(arg);
     }
 }
@@ -66,10 +64,10 @@ static void music_on(struct device_state * const arg)
     }
 
     softToneWrite(BUZZER, 0);
-    arg->buzzer_on = 0;
+    update_buzzer_state(0);
 }
 
 static void music_off(struct device_state * const arg)
 {
-    softToneWrite(BUZZER, 0); 
+    softToneWrite(BUZZER, 0);
 }
