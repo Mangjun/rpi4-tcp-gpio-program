@@ -408,17 +408,16 @@ void run(const int tcp_sockfd, const int http_sockfd)
                                 if (sscanf(path, "/cmd?target=%63[^&]&action=%63s", target, action) == 2) {
                                     syslog(LOG_INFO, "HTTP POST CMD: target[%s], action[%s]", target, action);
                                     
-                                    int j, is_handled = 0;
+                                    int j;
                                     for (j = 0; j < cmd_size; j++) {
                                         if (!strcasecmp(target, cmd[j].command)) {
                                             cmd[j].action(action);
-                                            is_handled = 1;
                                             break;
                                         }
                                     }
                                 }
 
-                                // 성공 시 응답
+				// 연결 종료
                                 const char *ok_res = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                                 send(client_fd, ok_res, strlen(ok_res), 0);
 
