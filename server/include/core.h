@@ -6,6 +6,7 @@
  *
  * History:
  * - <2026.06.03> : 최초 작성 (<김명준>)
+ * - <2026.06.04> : 브로드캐스트 함수 작성 (<김명준>)
  *******************************************************************************/
 
 #pragma once
@@ -29,4 +30,7 @@ int init_server_socket(const int port);
  */
 void run(const int tcp_sockfd, const int http_sockfd);
 
+/**
+ * @brief   HTTP 클라이언트에게 브로드캐스트
+ */
 void broadcast_sse();

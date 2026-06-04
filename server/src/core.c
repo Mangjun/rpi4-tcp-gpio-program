@@ -6,6 +6,7 @@
  *
  * History:
  * - <2026.06.03> : 최초 작성 (<김명준>)
+ * - <2026.06.04> : HTTP 요청 추가 (<김명준>)
  *******************************************************************************/
 
 #include "core.h"
@@ -57,6 +58,9 @@ const static int cmd_size = sizeof(cmd) / sizeof(cmd[0]);
 
 struct list* client_list;
 
+/**
+ * @brief   수신된 명령어 파싱하는 헬퍼 함수
+ */
 static int parse_command(const char *input, char *target, char *action) {
     if (input == NULL || target == NULL || action == NULL) {
         return -1;
@@ -69,6 +73,9 @@ static int parse_command(const char *input, char *target, char *action) {
     return -1;
 }
 
+/**
+ * @brief   html 파일 보내는 헬퍼 함수
+ */
 static void send_html(int client_fd, const char *filename) {
     char header[] = 
         "HTTP/1.1 200 OK\r\n"
@@ -91,6 +98,9 @@ static void send_html(int client_fd, const char *filename) {
     }
 }
 
+/**
+ * @brief   각 웹 클라이언트에게 SSE 응답 보내는 헬퍼 함수
+ */
 static int send_sse_data_cb(const int client_fd, void *arg) {
     const char *sse_msg = (const char *)arg;
     int len = strlen(sse_msg);
@@ -112,6 +122,7 @@ void broadcast_sse() {
     extern struct device_state g_state;
     char json_buf[256];
     
+    // JSON 형식
     snprintf(json_buf, sizeof(json_buf),
         "{\"led\":\"%s\", \"buzzer_on\":%d, \"cds_on\":%d, \"cds_threshold\":%d, \"cds_current\":%d, \"segment_on\":%d, \"segment\":%d}",
         g_state.led, g_state.buzzer_on, g_state.cds_on, g_state.cds_threshold, 
@@ -364,6 +375,7 @@ void run(const int tcp_sockfd, const int http_sockfd)
 
                         if (sscanf(buf, "%15s %255s", method, path) == 2) {
                             
+                            // index.html 요청
                             if (strcasecmp(method, "GET") == 0 && (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
                                 syslog(LOG_INFO, "HTTP GET %s [FD: %d]", path, client_fd);
                                 send_html(client_fd, "index.html");
@@ -374,6 +386,7 @@ void run(const int tcp_sockfd, const int http_sockfd)
                                 free(client);
                             }
                             
+                            // SSE 요청
                             else if (strcasecmp(method, "GET") == 0 && strcmp(path, "/stream") == 0) {
                                 syslog(LOG_INFO, "HTTP SSE Stream Connected [FD: %d]", client_fd);
                                 
@@ -385,9 +398,9 @@ void run(const int tcp_sockfd, const int http_sockfd)
                                 send(client_fd, sse_header, strlen(sse_header), 0);
                                 
                                 broadcast_sse();
-                                
                             }
 
+                            // 명령어 요청
                             else if (strcasecmp(method, "POST") == 0 && strncmp(path, "/cmd?", 5) == 0) {
                                 char target[64] = {0};
                                 char action[64] = {0};
@@ -405,6 +418,7 @@ void run(const int tcp_sockfd, const int http_sockfd)
                                     }
                                 }
 
+                                // 성공 시 응답
                                 const char *ok_res = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                                 send(client_fd, ok_res, strlen(ok_res), 0);
 
@@ -414,6 +428,7 @@ void run(const int tcp_sockfd, const int http_sockfd)
                                 free(client);
                             }
                             
+                            // 비정상 접근
                             else {
                                 const char *err_res = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
                                 send(client_fd, err_res, strlen(err_res), 0);
