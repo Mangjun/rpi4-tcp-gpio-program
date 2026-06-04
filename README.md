@@ -105,7 +105,10 @@ scp ./bin/server mangjun@172.20.33.117:/home/mangjun/
 # 1. 자동 빌드 및 서버 배포 스크립트 실행 (프로젝트 최상위 폴더)
 ./scp.sh
 
-# 2. 클라이언트 실행
+# 2. 홈 디렉터리에서 서버 실행 (rpi4) 
+./server
+
+# 3. 프로젝트 루트 디렉터리에서 클라이언트 실행 (Linux)
 ./bin/client <서버_IP> <서버_PORT>
 ```
 
