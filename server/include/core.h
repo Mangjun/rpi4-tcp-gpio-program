@@ -28,3 +28,5 @@ int init_server_socket(const int port);
  * @param   http_sockfd HTTP 서버 소켓
  */
 void run(const int tcp_sockfd, const int http_sockfd);
+
+void broadcast_sse();

@@ -9,6 +9,7 @@
  *******************************************************************************/
 
 #include "state.h"
+#include "core.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -39,7 +40,7 @@ void update_led_state(const char *new_state)
     pthread_mutex_unlock(&mutex);
 
     if (changed) {
-        // 브로드 캐스트
+        broadcast_sse();
     }
 }
 
@@ -56,7 +57,7 @@ void update_buzzer_state(const int new_state)
 
 
     if (changed) {
-        // 브로드 캐스트
+        broadcast_sse();
     }
 }
 
@@ -74,7 +75,7 @@ void update_cds_state(const int cds_on_state, const int cds_threshold, const int
     pthread_mutex_unlock(&mutex);
 
     if (changed) {
-        // 브로드 캐스트
+        broadcast_sse();
     }
 }
 
@@ -91,6 +92,6 @@ void update_segment_state(const int segment_on, const int segment)
     pthread_mutex_unlock(&mutex);
 
     if (changed) {
-        // 브로드 캐스트
+        broadcast_sse();
     }
 }

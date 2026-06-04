@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home IoT Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e24;
+            --text-main: #ffffff;
+            --text-sub: #a0a0a0;
+            --accent: #00ffcc;
+            --off-color: #333333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-bottom: 30px; color: var(--accent); letter-spacing: 2px; }
+
+        .dashboard {
+            display: grid;
+            /* 👇 이 부분을 repeat(2, 1fr)로 변경하여 무조건 2열로 고정했습니다 */
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        /* 👇 모바일 기기처럼 화면이 좁아질 경우 자동으로 1열로 변경되도록 추가 */
+        @media (max-width: 650px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card h2 { margin-top: 0; font-size: 1.2rem; color: var(--text-sub); }
+
+        /* --- LED 스타일 --- */
+        .led-bulb {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: var(--off-color);
+            box-shadow: inset 0 0 10px #000;
+            transition: all 0.3s ease;
+            margin: 20px 0;
+        }
+        .led-bulb.on { background-color: #ff3366; box-shadow: 0 0 30px #ff3366, inset 0 0 10px rgba(255,255,255,0.5); }
+        .led-bulb.low { background-color: #ff3366; box-shadow: 0 0 10px #ff3366; opacity: 0.5; }
+        .led-bulb.mid { background-color: #ff3366; box-shadow: 0 0 20px #ff3366; opacity: 0.8; }
+        .led-bulb.high { background-color: #ff3366; box-shadow: 0 0 40px #ff3366; opacity: 1; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .led-bulb.blink { background-color: #ff3366; box-shadow: 0 0 30px #ff3366; animation: blink 1s infinite; }
+
+        /* --- 7-Segment 스타일 --- */
+        .segment-container {
+            display: inline-block;
+            position: relative;
+            width: 60px;
+            height: 100px;
+            margin: 10px 0;
+        }
+        .seg {
+            position: absolute;
+            background-color: var(--off-color);
+            border-radius: 3px;
+            transition: background-color 0.1s;
+        }
+        .seg.active { background-color: #00ffcc; box-shadow: 0 0 10px #00ffcc; }
+        
+        .seg-a { top: 0; left: 10px; width: 40px; height: 10px; }
+        .seg-b { top: 10px; right: 0; width: 10px; height: 35px; }
+        .seg-c { bottom: 10px; right: 0; width: 10px; height: 35px; }
+        .seg-d { bottom: 0; left: 10px; width: 40px; height: 10px; }
+        .seg-e { bottom: 10px; left: 0; width: 10px; height: 35px; }
+        .seg-f { top: 10px; left: 0; width: 10px; height: 35px; }
+        .seg-g { top: 45px; left: 10px; width: 40px; height: 10px; }
+
+        /* --- 정보 텍스트 및 버튼 --- */
+        .status-text { font-size: 1.5rem; font-weight: bold; margin-bottom: 15px; }
+        .info-row { display: flex; justify-content: space-between; width: 100%; margin: 5px 0; font-size: 0.9rem;}
+        .val { color: var(--accent); font-weight: bold; font-size: 1.1rem; }
+
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;}
+        button {
+            background-color: #333; color: white; border: none;
+            padding: 8px 15px; border-radius: 5px; cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+        button:hover { background-color: var(--accent); color: black; }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 Smart Home Dashboard</h1>
+
+    <div class="dashboard">
+        <div class="card">
+            <h2>🔴 LED Control</h2>
+            <div id="led-visual" class="led-bulb off"></div>
+            <div id="led-status" class="status-text">OFF</div>
+            <div class="btn-group">
+                <button onclick="sendCommand('led', 'ON')">ON</button>
+                <button onclick="sendCommand('led', 'OFF')">OFF</button>
+                <button onclick="sendCommand('led', 'BLINK')">BLINK</button>
+                <button onclick="sendCommand('led', 'LOW')">LOW</button>
+                <button onclick="sendCommand('led', 'MID')">MID</button>
+                <button onclick="sendCommand('led', 'HIGH')">HIGH</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🎵 Buzzer</h2>
+            <div id="buzzer-visual" style="font-size: 4rem; margin: 10px 0;">🔇</div>
+            <div id="buzzer-status" class="status-text">OFF</div>
+            <div class="btn-group">
+                <button onclick="sendCommand('buzzer', 'ON')">Play Music</button>
+                <button onclick="sendCommand('buzzer', 'OFF')">Stop</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>⏱️ 7-Segment Timer</h2>
+            <div class="segment-container">
+                <div id="seg-0" class="seg seg-a"></div>
+                <div id="seg-1" class="seg seg-b"></div>
+                <div id="seg-2" class="seg seg-c"></div>
+                <div id="seg-3" class="seg seg-d"></div>
+                <div id="seg-4" class="seg seg-e"></div>
+                <div id="seg-5" class="seg seg-f"></div>
+                <div id="seg-6" class="seg seg-g"></div>
+            </div>
+            <div class="info-row">
+                <span>Timer State:</span>
+                <span id="seg-status" class="val">OFF</span>
+            </div>
+            <div class="btn-group" style="margin-top: 15px;">
+                <button onclick="sendCommand('segment', '9')">Start (9s)</button>
+                <button onclick="sendCommand('segment', 'OFF')">Stop</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>☀️ CDS Sensor</h2>
+            <div style="font-size: 3rem; margin: 10px 0;" id="cds-icon">🌙</div>
+            <div class="info-row">
+                <span>Auto Mode:</span>
+                <span id="cds-status" class="val">OFF</span>
+            </div>
+            <div class="info-row">
+                <span>Current Light:</span>
+                <span id="cds-current" class="val">0</span>
+            </div>
+            <div class="info-row">
+                <span>Threshold:</span>
+                <span id="cds-threshold" class="val">-1</span>
+            </div>
+            <div class="btn-group" style="margin-top: 15px;">
+                <button onclick="sendCommand('cds', '100')">Set Thresh: 100</button>
+                <button onclick="sendCommand('cds', 'OFF')">Turn OFF Auto</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // 1. 서버로 명령어 보내기 (Fetch API - HTTP POST)
+        // =========================================================
+        function sendCommand(target, action) {
+            console.log(`Sending Command -> Target: ${target}, Action: ${action}`);
+            
+            // 서버의 /cmd 경로로 POST 요청 전송
+            fetch(`/cmd?target=${target}&action=${action}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error("Server responded with an error:", response.status);
+                }
+            })
+            .catch(err => console.error("Network Error:", err));
+        }
+
+        // =========================================================
+        // 2. 서버로부터 브로드캐스트 수신 (SSE - Server-Sent Events)
+        // =========================================================
+        const evtSource = new EventSource('/stream');
+
+        evtSource.onopen = () => console.log('SSE Stream Connected!');
+        evtSource.onerror = (err) => console.error('SSE Stream Error or Disconnected. Reconnecting...', err);
+
+        // 서버에서 data: { ... }\n\n 형태로 보낼 때마다 트리거됨
+        evtSource.onmessage = (event) => {
+            try {
+                const state = JSON.parse(event.data);
+                console.log("State Updated from Server:", state);
+                updateDashboard(state);
+            } catch (e) {
+                console.error("JSON Parsing Error:", e, event.data);
+            }
+        };
+
+        // =========================================================
+        // 3. 수신된 데이터로 화면 업데이트 함수
+        // =========================================================
+        function updateDashboard(state) {
+            // [LED 업데이트]
+            if (state.led) {
+                const ledVisual = document.getElementById('led-visual');
+                document.getElementById('led-status').innerText = state.led.toUpperCase();
+                // 클래스 덮어씌우기 (off, on, low, mid, high, blink)
+                ledVisual.className = 'led-bulb ' + state.led.toLowerCase();
+            }
+
+            // [Buzzer 업데이트]
+            if (state.buzzer_on !== undefined) {
+                document.getElementById('buzzer-status').innerText = state.buzzer_on ? "PLAYING" : "OFF";
+                document.getElementById('buzzer-visual').innerText = state.buzzer_on ? "🔊" : "🔇";
+                document.getElementById('buzzer-visual').style.color = state.buzzer_on ? "var(--accent)" : "var(--text-main)";
+            }
+
+            // [CDS 센서 업데이트]
+            if (state.cds_on !== undefined) {
+                document.getElementById('cds-status').innerText = state.cds_on ? "ON" : "OFF";
+                document.getElementById('cds-current').innerText = state.cds_current;
+                document.getElementById('cds-threshold').innerText = state.cds_threshold;
+                // 조도 값이 임계치보다 높고, 센서가 켜져있으면 해(☀️), 아니면 달(🌙)
+                document.getElementById('cds-icon').innerText = (state.cds_current > state.cds_threshold && state.cds_on) ? "☀️" : "🌙";
+            }
+
+            // [7-Segment 업데이트]
+            if (state.segment_on !== undefined) {
+                document.getElementById('seg-status').innerText = state.segment_on ? "RUNNING" : "OFF";
+                if (state.segment_on) {
+                    drawSegment(state.segment);
+                } else {
+                    drawSegment(-1); // 불 다 끄기
+                }
+            }
+        }
+
+        // =========================================================
+        // 4. 7-Segment 숫자 그리기 로직 (C언어 패턴 배열과 동일)
+        // =========================================================
+        const numPatterns = [
+            [1, 1, 1, 1, 1, 1, 0], // 0
+            [0, 1, 1, 0, 0, 0, 0], // 1
+            [1, 1, 0, 1, 1, 0, 1], // 2
+            [1, 1, 1, 1, 0, 0, 1], // 3
+            [0, 1, 1, 0, 0, 1, 1], // 4
+            [1, 0, 1, 1, 0, 1, 1], // 5
+            [1, 0, 1, 1, 1, 1, 1], // 6
+            [1, 1, 1, 0, 0, 0, 0], // 7
+            [1, 1, 1, 1, 1, 1, 1], // 8
+            [1, 1, 1, 1, 0, 1, 1]  // 9
+        ];
+
+        function drawSegment(num) {
+            for (let i = 0; i < 7; i++) {
+                const segEl = document.getElementById(`seg-${i}`);
+                if (num >= 0 && num <= 9 && numPatterns[num][i] === 1) {
+                    segEl.classList.add('active'); // 불 켜기
+                } else {
+                    segEl.classList.remove('active'); // 불 끄기
+                }
+            }
+        }
+    </script>
+</body>
+</html>

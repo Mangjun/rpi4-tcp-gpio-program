@@ -55,6 +55,8 @@ struct session {
 
 const static int cmd_size = sizeof(cmd) / sizeof(cmd[0]);
 
+struct list* client_list;
+
 static int parse_command(const char *input, char *target, char *action) {
     if (input == NULL || target == NULL || action == NULL) {
         return -1;
@@ -65,6 +67,60 @@ static int parse_command(const char *input, char *target, char *action) {
     }
 
     return -1;
+}
+
+static void send_html(int client_fd, const char *filename) {
+    char header[] = 
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html; charset=UTF-8\r\n"
+        "Connection: close\r\n\r\n";
+    
+    send(client_fd, header, strlen(header), 0);
+
+    int fd = open(filename, O_RDONLY);
+    if (fd != -1) {
+        char file_buf[MAX_BUF_SIZE];
+        int len;
+        while ((len = read(fd, file_buf, sizeof(file_buf))) > 0) {
+            send(client_fd, file_buf, len, 0);
+        }
+        close(fd);
+    } else {
+        const char *err = "<h1>404 Not Found</h1>";
+        send(client_fd, err, strlen(err), 0);
+    }
+}
+
+static int send_sse_data_cb(const int client_fd, void *arg) {
+    const char *sse_msg = (const char *)arg;
+    int len = strlen(sse_msg);
+
+    int ret = send(client_fd, sse_msg, len, MSG_NOSIGNAL);
+
+    if (ret < 0) {
+        syslog(LOG_INFO, "SSE Stream Disconnected [FD: %d]", client_fd);
+        close(client_fd);
+        return -1;
+    }
+    
+    return 0;
+}
+
+void broadcast_sse() {
+    if (!client_list || !client_list->pimpl) return;
+
+    extern struct device_state g_state;
+    char json_buf[256];
+    
+    snprintf(json_buf, sizeof(json_buf),
+        "{\"led\":\"%s\", \"buzzer_on\":%d, \"cds_on\":%d, \"cds_threshold\":%d, \"cds_current\":%d, \"segment_on\":%d, \"segment\":%d}",
+        g_state.led, g_state.buzzer_on, g_state.cds_on, g_state.cds_threshold, 
+        g_state.cds_current, g_state.segment_on, g_state.segment);
+
+    char sse_msg[MAX_BUF_SIZE];
+    snprintf(sse_msg, sizeof(sse_msg), "data: %s\n\n", json_buf);
+
+    client_list->ops->for_each(client_list, send_sse_data_cb, (void *)sse_msg);
 }
 
 void daemonize()
@@ -140,7 +196,6 @@ void run(const int tcp_sockfd, const int http_sockfd)
     struct epoll_event event;
     struct epoll_event events[MAX_EVENTS];
     int event_count, num_bytes;
-    struct list* client_list;
     int i;
 
     socklen_t sin_size = sizeof(struct sockaddr_in);
@@ -304,7 +359,71 @@ void run(const int tcp_sockfd, const int http_sockfd)
                     }
                     /* HTTP Request 처리 */
                     else {
+                        char method[16] = {0};
+                        char path[256] = {0};
 
+                        if (sscanf(buf, "%15s %255s", method, path) == 2) {
+                            
+                            if (strcasecmp(method, "GET") == 0 && (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
+                                syslog(LOG_INFO, "HTTP GET %s [FD: %d]", path, client_fd);
+                                send_html(client_fd, "index.html");
+                                
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+                                close(client_fd);
+                                client_list->ops->remove_node(client_list, client->list_node);
+                                free(client);
+                            }
+                            
+                            else if (strcasecmp(method, "GET") == 0 && strcmp(path, "/stream") == 0) {
+                                syslog(LOG_INFO, "HTTP SSE Stream Connected [FD: %d]", client_fd);
+                                
+                                const char *sse_header = 
+                                    "HTTP/1.1 200 OK\r\n"
+                                    "Content-Type: text/event-stream\r\n"
+                                    "Cache-Control: no-cache\r\n"
+                                    "Connection: keep-alive\r\n\r\n";
+                                send(client_fd, sse_header, strlen(sse_header), 0);
+                                
+                                broadcast_sse();
+                                
+                            }
+
+                            else if (strcasecmp(method, "POST") == 0 && strncmp(path, "/cmd?", 5) == 0) {
+                                char target[64] = {0};
+                                char action[64] = {0};
+
+                                if (sscanf(path, "/cmd?target=%63[^&]&action=%63s", target, action) == 2) {
+                                    syslog(LOG_INFO, "HTTP POST CMD: target[%s], action[%s]", target, action);
+                                    
+                                    int j, is_handled = 0;
+                                    for (j = 0; j < cmd_size; j++) {
+                                        if (!strcasecmp(target, cmd[j].command)) {
+                                            cmd[j].action(action);
+                                            is_handled = 1;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                const char *ok_res = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                                send(client_fd, ok_res, strlen(ok_res), 0);
+
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+                                close(client_fd);
+                                client_list->ops->remove_node(client_list, client->list_node);
+                                free(client);
+                            }
+                            
+                            else {
+                                const char *err_res = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
+                                send(client_fd, err_res, strlen(err_res), 0);
+                                
+                                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+                                close(client_fd);
+                                client_list->ops->remove_node(client_list, client->list_node);
+                                free(client);
+                            }
+                        }
                     }
                 }
             }
